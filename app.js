@@ -46,6 +46,7 @@ const atasListDiv = document.getElementById("atas-list");
 
 // Participantes
 const novoParticipanteInput = document.getElementById("novo-participante");
+const corParticipanteSelect = document.getElementById("cor-participante");
 const cadastrarParticipanteBtn = document.getElementById("cadastrar-participante");
 const buscaParticipantes = document.getElementById("busca-participantes");
 const participantesListaDiv = document.getElementById("participantes-lista");
@@ -111,6 +112,14 @@ async function gerarNumeroAta() {
   return `ATA-${anoAtual}-${sequencial}`;
 }
 
+// Obtém a classe CSS correspondente à cor
+function getCorClass(cor) {
+  if (cor === "azul") return "participant-azul";
+  if (cor === "verde") return "participant-verde";
+  if (cor === "amarelo") return "participant-amarelo";
+  return "participant-default";
+}
+
 // Atualiza o dashboard
 function atualizarDashboard() {
   // Total de atas
@@ -153,14 +162,18 @@ function atualizarDashboard() {
     return;
   }
 
-  // Exibir como lista estilizada com badges
-  freqParticipantesList.innerHTML = sortedFreq.map(([nome, count], index) => `
-    <li class="freq-item">
-      <span class="freq-rank">${index + 1}º</span>
-      <span class="freq-name">${nome}</span>
-      <span class="freq-count">${count} reunião${count !== 1 ? 'ões' : ''}</span>
-    </li>
-  `).join("");
+  // Exibir como lista estilizada com cores
+  freqParticipantesList.innerHTML = sortedFreq.map(([nome, count], index) => {
+    const participante = participantes.find(p => p.nome === nome);
+    const corClass = participante ? getCorClass(participante.cor) : "participant-default";
+    return `
+      <li class="freq-item">
+        <span class="freq-rank">${index + 1}º</span>
+        <span class="freq-name ${corClass}" style="padding: 0.2rem 0.6rem; border-radius: 20px;">${nome}</span>
+        <span class="freq-count">${count} reunião${count !== 1 ? 'ões' : ''}</span>
+      </li>
+    `;
+  }).join("");
 }
 
 // -------------------- CRUD Atas --------------------
@@ -194,23 +207,34 @@ function renderAtasList() {
     return;
   }
 
-  atasListDiv.innerHTML = filtered.map(ata => `
-    <div class="ata-item">
-      <div class="ata-header">
-        <div class="ata-title">${ata.numero}</div>
-        <div class="ata-meta">${formatDate(ata.data)} | ${ata.horaInicio} - ${ata.horaFim}</div>
+  atasListDiv.innerHTML = filtered.map(ata => {
+    // Gerar tags de participantes com cores
+    const participantesHtml = (ata.participantes || []).map(p => {
+      const participante = participantes.find(part => part.nome === p);
+      const corClass = participante ? getCorClass(participante.cor) : "participant-default";
+      return `<span class="tag ${corClass}">${p}</span>`;
+    }).join(" ");
+
+    const topicosHtml = (ata.topicos || []).map(t => `<span class="tag participant-default">${t}</span>`).join(" ");
+
+    return `
+      <div class="ata-item">
+        <div class="ata-header">
+          <div class="ata-title">${ata.numero}</div>
+          <div class="ata-meta">${formatDate(ata.data)} | ${ata.horaInicio} - ${ata.horaFim}</div>
+        </div>
+        <div class="ata-details">
+          <strong>Participantes:</strong> ${participantesHtml || "Nenhum"}<br>
+          <strong>Tópicos:</strong> ${topicosHtml || "Nenhum"}<br>
+          <strong>Observações:</strong> ${ata.observacoes || "—"}
+        </div>
+        <div class="ata-actions">
+          <button class="btn-secondary edit-ata" data-id="${ata.id}"><i class="fas fa-edit"></i> Editar</button>
+          <button class="btn-secondary delete-ata" data-id="${ata.id}"><i class="fas fa-trash-alt"></i> Excluir</button>
+        </div>
       </div>
-      <div class="ata-details">
-        <strong>Participantes:</strong> ${ata.participantes?.join(", ") || "Nenhum"}<br>
-        <strong>Tópicos:</strong> ${ata.topicos?.join(", ") || "Nenhum"}<br>
-        <strong>Observações:</strong> ${ata.observacoes || "—"}
-      </div>
-      <div class="ata-actions">
-        <button class="btn-secondary edit-ata" data-id="${ata.id}"><i class="fas fa-edit"></i> Editar</button>
-        <button class="btn-secondary delete-ata" data-id="${ata.id}"><i class="fas fa-trash-alt"></i> Excluir</button>
-      </div>
-    </div>
-  `).join("");
+    `;
+  }).join("");
 
   // Eventos dos botões
   document.querySelectorAll(".edit-ata").forEach(btn => {
@@ -288,7 +312,7 @@ function editarAta(id) {
   ataHoraFim.value = ata.horaFim;
   ataObs.value = ata.observacoes || "";
 
-  // Preencher participantes
+  // Preencher participantes com cores
   participantesListDiv.innerHTML = "";
   if (ata.participantes && Array.isArray(ata.participantes)) {
     ata.participantes.forEach(p => {
@@ -324,9 +348,11 @@ async function excluirAta(id) {
 async function carregarParticipantes() {
   const q = query(participantesCollection, orderBy("nome"));
   const unsubscribe = onSnapshot(q, (snapshot) => {
-    participantes = snapshot.docs.map(doc => ({ id: doc.id, nome: doc.data().nome }));
+    participantes = snapshot.docs.map(doc => ({ id: doc.id, nome: doc.data().nome, cor: doc.data().cor || "" }));
     renderParticipantesList();
     atualizarDatalists();
+    // Re-renderizar atas para atualizar cores dos participantes já cadastrados
+    renderAtasList();
     showLoading(false);
   }, (error) => {
     console.error("Erro ao carregar participantes:", error);
@@ -339,16 +365,49 @@ async function carregarParticipantes() {
 function renderParticipantesList() {
   const searchTerm = buscaParticipantes.value.toLowerCase();
   const filtered = participantes.filter(p => p.nome.toLowerCase().includes(searchTerm));
-  participantesListaDiv.innerHTML = filtered.map(p => `
-    <div class="participant-tag">
-      <span>${p.nome}</span>
-      <i class="fas fa-trash-alt delete-participante" data-id="${p.id}"></i>
-    </div>
-  `).join("");
+  participantesListaDiv.innerHTML = filtered.map(p => {
+    const corClass = getCorClass(p.cor);
+    return `
+      <div class="participant-tag ${corClass}">
+        <span>${p.nome}</span>
+        <i class="fas fa-pencil-alt edit-cor" data-id="${p.id}" data-cor="${p.cor}" style="cursor:pointer;"></i>
+        <i class="fas fa-trash-alt delete-participante" data-id="${p.id}" style="cursor:pointer;"></i>
+      </div>
+    `;
+  }).join("");
+
+  // Evento de editar cor
+  document.querySelectorAll(".edit-cor").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.id;
+      const corAtual = btn.dataset.cor;
+      const novaCor = prompt("Escolha a nova cor:\n- azul (5x1)\n- verde (12x36)\n- amarelo (12x36)\n- (deixe em branco para sem cor)", corAtual);
+      if (novaCor !== null) {
+        let corValida = "";
+        if (novaCor === "azul" || novaCor === "verde" || novaCor === "amarelo") {
+          corValida = novaCor;
+        } else {
+          corValida = "";
+        }
+        editarCorParticipante(id, corValida);
+      }
+    });
+  });
 
   document.querySelectorAll(".delete-participante").forEach(btn => {
     btn.addEventListener("click", () => excluirParticipante(btn.dataset.id));
   });
+}
+
+async function editarCorParticipante(id, novaCor) {
+  try {
+    await updateDoc(doc(db, "participantes", id), { cor: novaCor });
+    showToast("Cor atualizada!");
+  } catch (error) {
+    console.error("Erro ao atualizar cor:", error);
+    showToast("Erro ao atualizar cor", "error");
+  }
 }
 
 function atualizarDatalists() {
@@ -359,13 +418,15 @@ function atualizarDatalists() {
 
 async function adicionarParticipante() {
   const nome = novoParticipanteInput.value.trim();
+  const cor = corParticipanteSelect.value;
   if (!nome) {
     showToast("Digite um nome", "error");
     return;
   }
   try {
-    await addDoc(participantesCollection, { nome });
+    await addDoc(participantesCollection, { nome, cor: cor || "" });
     novoParticipanteInput.value = "";
+    corParticipanteSelect.value = "";
     showToast("Participante adicionado!");
   } catch (error) {
     console.error("Erro ao adicionar participante:", error);
@@ -620,8 +681,11 @@ function exportarExcel() {
 
 // -------------------- Tags dinâmicas (participantes/tópicos) --------------------
 function addTag(container, text) {
+  // Buscar a cor do participante se for da lista de participantes
+  const participante = participantes.find(p => p.nome === text);
+  const corClass = participante ? getCorClass(participante.cor) : "participant-default";
   const tag = document.createElement("div");
-  tag.className = "tag";
+  tag.className = `tag ${corClass}`;
   tag.innerHTML = `<span>${text}</span><i class="fas fa-times remove-tag"></i>`;
   container.appendChild(tag);
   tag.querySelector(".remove-tag").addEventListener("click", () => tag.remove());
@@ -701,7 +765,7 @@ async function inicializarParticipantes() {
     if (snapshot.empty) {
       showLoading(true);
       for (const nome of PREDEFINED_PARTICIPANTS) {
-        await addDoc(participantesCollection, { nome });
+        await addDoc(participantesCollection, { nome, cor: "" });
       }
       showToast("Lista de participantes carregada com sucesso!");
       showLoading(false);
