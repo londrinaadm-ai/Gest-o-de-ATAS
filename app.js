@@ -119,7 +119,7 @@ function atualizarDashboard() {
   // Participantes únicos (de todas as atas)
   const participantesUnicos = new Set();
   atas.forEach(ata => {
-    if (ata.participantes) {
+    if (ata.participantes && Array.isArray(ata.participantes)) {
       ata.participantes.forEach(p => participantesUnicos.add(p));
     }
   });
@@ -128,7 +128,7 @@ function atualizarDashboard() {
   // Problema mais citado (tópico mais frequente)
   const problemas = {};
   atas.forEach(ata => {
-    if (ata.topicos) {
+    if (ata.topicos && Array.isArray(ata.topicos)) {
       ata.topicos.forEach(topico => {
         problemas[topico] = (problemas[topico] || 0) + 1;
       });
@@ -137,18 +137,30 @@ function atualizarDashboard() {
   const topProblema = Object.entries(problemas).sort((a, b) => b[1] - a[1])[0];
   topProblemaEl.innerText = topProblema ? topProblema[0] : "Nenhum";
 
-  // Participantes mais frequentes
+  // Participantes mais frequentes (top 10)
   const freq = {};
   atas.forEach(ata => {
-    if (ata.participantes) {
+    if (ata.participantes && Array.isArray(ata.participantes)) {
       ata.participantes.forEach(p => {
         freq[p] = (freq[p] || 0) + 1;
       });
     }
   });
-  const sortedFreq = Object.entries(freq).sort((a, b) => b[1] - a[1]).slice(0, 5);
-  freqParticipantesList.innerHTML = sortedFreq.map(([nome, count]) => `<li><span>${nome}</span><span>${count} participações</span></li>`).join("");
-  if (sortedFreq.length === 0) freqParticipantesList.innerHTML = "<li>Nenhum participante registrado</li>";
+  const sortedFreq = Object.entries(freq).sort((a, b) => b[1] - a[1]).slice(0, 10);
+  
+  if (sortedFreq.length === 0) {
+    freqParticipantesList.innerHTML = "<li>Nenhum participante registrado</li>";
+    return;
+  }
+
+  // Exibir como lista estilizada com badges
+  freqParticipantesList.innerHTML = sortedFreq.map(([nome, count], index) => `
+    <li class="freq-item">
+      <span class="freq-rank">${index + 1}º</span>
+      <span class="freq-name">${nome}</span>
+      <span class="freq-count">${count} reunião${count !== 1 ? 'ões' : ''}</span>
+    </li>
+  `).join("");
 }
 
 // -------------------- CRUD Atas --------------------
@@ -278,7 +290,7 @@ function editarAta(id) {
 
   // Preencher participantes
   participantesListDiv.innerHTML = "";
-  if (ata.participantes) {
+  if (ata.participantes && Array.isArray(ata.participantes)) {
     ata.participantes.forEach(p => {
       addTag(participantesListDiv, p);
     });
@@ -286,7 +298,7 @@ function editarAta(id) {
 
   // Preencher tópicos
   topicosListDiv.innerHTML = "";
-  if (ata.topicos) {
+  if (ata.topicos && Array.isArray(ata.topicos)) {
     ata.topicos.forEach(t => {
       addTag(topicosListDiv, t);
     });
@@ -618,6 +630,12 @@ function addTag(container, text) {
 function addParticipanteFromInput() {
   const nome = inputParticipante.value.trim();
   if (nome) {
+    // Verificar se o nome existe na lista de participantes cadastrados (para consistência)
+    const exists = participantes.some(p => p.nome === nome);
+    if (!exists) {
+      showToast("Participante não cadastrado. Cadastre-o primeiro.", "error");
+      return;
+    }
     addTag(participantesListDiv, nome);
     inputParticipante.value = "";
   } else {
@@ -648,6 +666,51 @@ inputTopico.addEventListener("keypress", (e) => {
     addTopicoFromInput();
   }
 });
+
+// -------------------- Inicialização dos participantes no Firestore --------------------
+const PREDEFINED_PARTICIPANTS = [
+  "CARLINHOS",
+  "MIKAEL",
+  "MARIO ALEXANDRE CLEMENTIN",
+  "VANIA DO SOCORRO LEOCADIO",
+  "JACKELINE ARAUJO SAMPAIO DIAS",
+  "LUCAS VINICIUS DA SILVA",
+  "CARLOS HENRIQUE FERREIRA LEITE",
+  "LUIZ FERNANDO S MORYAMA DOS SANTOS",
+  "ERICK DE SOUZA RODRIGUES",
+  "DEISY SANTOS CRUZ",
+  "DANIELE DA SILVA ROCHA",
+  "ANA BEATRIZ PEREIRA",
+  "VANESSA LOPES SOUZA DE OLIVEIRA",
+  "MARIA LUIZA ALEIXO ANTUNES",
+  "MARISA MENEGHETTI",
+  "LUDMILA R CASSIANO",
+  "MARIA GABRIELA ANTONIO",
+  "DENISE CRISTINA DE SOUSA",
+  "EDSON SILVA MACÊDO",
+  "ANA GABRIELLY CORREA FERREIRA",
+  "MARIA CLARA RAMOS - CS",
+  "GABRIELY AMORIM CAMPOS",
+  "THAIS BENA LIMA",
+  "ABNER CAVALCANTE"
+];
+
+async function inicializarParticipantes() {
+  try {
+    const snapshot = await getDocs(participantesCollection);
+    if (snapshot.empty) {
+      showLoading(true);
+      for (const nome of PREDEFINED_PARTICIPANTS) {
+        await addDoc(participantesCollection, { nome });
+      }
+      showToast("Lista de participantes carregada com sucesso!");
+      showLoading(false);
+    }
+  } catch (error) {
+    console.error("Erro ao inicializar participantes:", error);
+    showToast("Erro ao carregar lista inicial de participantes", "error");
+  }
+}
 
 // -------------------- Tema claro/escuro --------------------
 function initTheme() {
@@ -707,9 +770,17 @@ function init() {
 
   // Carregar dados
   showLoading(true);
-  carregarAtas();
-  carregarParticipantes();
-  carregarAnotacoes();
+  // Inicializar participantes primeiro (para garantir que existam antes de carregar atas)
+  inicializarParticipantes().then(() => {
+    carregarParticipantes();
+    carregarAtas();
+    carregarAnotacoes();
+  }).catch(err => {
+    console.error("Erro na inicialização:", err);
+    carregarParticipantes();
+    carregarAtas();
+    carregarAnotacoes();
+  });
 }
 
 init();
