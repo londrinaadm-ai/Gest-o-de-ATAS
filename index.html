@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+  <title>Porter | Gestão de Atas</title>
+  <link rel="icon" href="https://academic-orange-a4tsbsnqx7.edgeone.dev/f24b4340-d16a-11ec-a57b-ed62facb9049_256_avatar-removebg-preview.png">
+  <link rel="stylesheet" href="style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <!-- Bibliotecas para exportação -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+
+  <div id="loading-overlay" class="loading-overlay">
+    <div class="spinner"></div>
+    <p>Carregando dados...</p>
+  </div>
+
+  <header class="app-header">
+    <div class="logo-area">
+      <img src="https://academic-orange-a4tsbsnqx7.edgeone.dev/f24b4340-d16a-11ec-a57b-ed62facb9049_256_avatar-removebg-preview.png" alt="Porter Logo">
+      <span class="logo-text">PORTER</span>
+    </div>
+    <div class="header-actions">
+      <button id="theme-toggle" class="theme-toggle" aria-label="Alternar tema">
+        <i class="fas fa-moon"></i>
+      </button>
+    </div>
+  </header>
+
+  <div class="container">
+    <nav class="tabs">
+      <button class="tab-btn active" data-tab="dashboard"><i class="fas fa-chart-line"></i> Dashboard</button>
+      <button class="tab-btn" data-tab="atas"><i class="fas fa-file-alt"></i> Atas</button>
+      <button class="tab-btn" data-tab="relatorios"><i class="fas fa-chart-bar"></i> Relatórios</button>
+      <button class="tab-btn" data-tab="anotacoes"><i class="fas fa-sticky-note"></i> Anotações</button>
+      <button class="tab-btn" data-tab="participantes"><i class="fas fa-users"></i> Participantes</button>
+    </nav>
+
+    <!-- Dashboard -->
+    <section id="dashboard" class="tab-pane active">
+      <div class="dashboard-stats">
+        <div class="stat-card">
+          <i class="fas fa-file-signature"></i>
+          <h3 id="total-atas">0</h3>
+          <p>Total de Atas</p>
+        </div>
+        <div class="stat-card">
+          <i class="fas fa-user-friends"></i>
+          <h3 id="total-participantes">0</h3>
+          <p>Participantes Únicos</p>
+        </div>
+        <div class="stat-card">
+          <i class="fas fa-comment-dots"></i>
+          <h3 id="top-problema">-</h3>
+          <p>Problema mais citado</p>
+        </div>
+      </div>
+      <div class="card">
+        <h3><i class="fas fa-trophy"></i> Participantes mais frequentes</h3>
+        <ul id="freq-participantes" class="freq-list"></ul>
+      </div>
+    </section>
+
+    <!-- Atas -->
+    <section id="atas" class="tab-pane">
+      <div class="card">
+        <h3><i class="fas fa-plus-circle"></i> Nova Ata</h3>
+        <form id="form-ata">
+          <input type="hidden" id="ata-id">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Número automático</label>
+              <input type="text" id="ata-numero" readonly placeholder="Gerado automaticamente">
+            </div>
+            <div class="form-group">
+              <label>Data</label>
+              <input type="date" id="ata-data" required>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Hora Início</label>
+              <input type="time" id="ata-hora-inicio" required>
+            </div>
+            <div class="form-group">
+              <label>Hora Fim</label>
+              <input type="time" id="ata-hora-fim" required>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Participantes</label>
+            <div class="input-group">
+              <input type="text" id="input-participante" list="participantes-suggestions" placeholder="Digite o nome e pressione Enter ou clique em Adicionar">
+              <datalist id="participantes-suggestions"></datalist>
+              <button type="button" id="add-participante-btn" class="btn-secondary">Adicionar</button>
+            </div>
+            <div id="participantes-list" class="tag-list"></div>
+          </div>
+          <div class="form-group">
+            <label>Tópicos discutidos</label>
+            <div class="input-group">
+              <input type="text" id="input-topico" placeholder="Tópico">
+              <button type="button" id="add-topico-btn" class="btn-secondary">Adicionar</button>
+            </div>
+            <div id="topicos-list" class="tag-list"></div>
+          </div>
+          <div class="form-group">
+            <label>Observações Gerais</label>
+            <textarea id="ata-obs" rows="3"></textarea>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn-primary"><i class="fas fa-save"></i> Salvar Ata</button>
+            <button type="button" id="cancel-edit-ata" class="btn-secondary">Cancelar Edição</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="card">
+        <h3><i class="fas fa-list"></i> Lista de Atas</h3>
+        <div class="search-bar">
+          <i class="fas fa-search"></i>
+          <input type="text" id="search-atas" placeholder="Buscar por número, participante ou tópico...">
+        </div>
+        <div id="atas-list" class="atas-list"></div>
+      </div>
+    </section>
+
+    <!-- Relatórios -->
+    <section id="relatorios" class="tab-pane">
+      <div class="card">
+        <h3><i class="fas fa-filter"></i> Filtros Avançados</h3>
+        <div class="filters-grid">
+          <div class="form-group">
+            <label>Data Inicial</label>
+            <input type="date" id="rel-data-inicio">
+          </div>
+          <div class="form-group">
+            <label>Data Final</label>
+            <input type="date" id="rel-data-fim">
+          </div>
+          <div class="form-group">
+            <label>Período do dia</label>
+            <select id="rel-periodo">
+              <option value="">Todos</option>
+              <option value="manha">Manhã (06:00 - 11:59)</option>
+              <option value="tarde">Tarde (12:00 - 17:59)</option>
+              <option value="noite">Noite (18:00 - 23:59)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Participante</label>
+            <input type="text" id="rel-participante" list="participantes-suggestions-rel" placeholder="Digite o nome">
+            <datalist id="participantes-suggestions-rel"></datalist>
+          </div>
+          <div class="form-group">
+            <label>Palavra-chave</label>
+            <input type="text" id="rel-palavra" placeholder="tópico ou observação">
+          </div>
+        </div>
+        <div class="form-actions">
+          <button id="gerar-relatorio" class="btn-primary"><i class="fas fa-chart-line"></i> Gerar Relatório</button>
+          <button id="export-pdf" class="btn-secondary"><i class="fas fa-file-pdf"></i> Exportar PDF</button>
+          <button id="export-excel" class="btn-secondary"><i class="fas fa-file-excel"></i> Exportar Excel</button>
+        </div>
+      </div>
+      <div id="relatorio-resultado" class="card relatorio-container"></div>
+    </section>
+
+    <!-- Anotações -->
+    <section id="anotacoes" class="tab-pane">
+      <div class="card">
+        <h3><i class="fas fa-edit"></i> Nova Anotação</h3>
+        <form id="form-anotacao">
+          <input type="hidden" id="anotacao-id">
+          <div class="form-group">
+            <textarea id="anotacao-texto" rows="3" placeholder="Escreva sua anotação..." required></textarea>
+          </div>
+          <div class="form-group">
+            <label>Vincular à Ata (ID opcional)</label>
+            <input type="text" id="anotacao-vinculo" placeholder="ID da ata">
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn-primary"><i class="fas fa-save"></i> Salvar Anotação</button>
+            <button type="button" id="cancel-edit-anotacao" class="btn-secondary">Cancelar</button>
+          </div>
+        </form>
+      </div>
+      <div class="card">
+        <h3><i class="fas fa-sticky-note"></i> Minhas Anotações</h3>
+        <div class="search-bar">
+          <i class="fas fa-search"></i>
+          <input type="text" id="busca-anotacoes" placeholder="Buscar anotação...">
+        </div>
+        <div id="anotacoes-list" class="anotacoes-list"></div>
+      </div>
+    </section>
+
+    <!-- Participantes -->
+    <section id="participantes" class="tab-pane">
+      <div class="card">
+        <h3><i class="fas fa-user-plus"></i> Cadastrar novo participante</h3>
+        <div class="input-group">
+          <input type="text" id="novo-participante" placeholder="Nome completo">
+          <button id="cadastrar-participante" class="btn-primary">Cadastrar</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3><i class="fas fa-users"></i> Lista de participantes</h3>
+        <div class="search-bar">
+          <i class="fas fa-search"></i>
+          <input type="text" id="busca-participantes" placeholder="Buscar...">
+        </div>
+        <div id="participantes-lista" class="participantes-grid"></div>
+      </div>
+    </section>
+  </div>
+
+  <script type="module" src="firebase.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
