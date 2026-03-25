@@ -111,7 +111,12 @@
           </div>
           <div class="form-group">
             <label>Observações Gerais</label>
-            <textarea id="ata-obs" rows="3"></textarea>
+            <div class="editor-toolbar">
+              <button type="button" data-command="bold" title="Negrito"><i class="fas fa-bold"></i></button>
+              <button type="button" data-command="italic" title="Itálico"><i class="fas fa-italic"></i></button>
+              <button type="button" data-command="underline" title="Sublinhado"><i class="fas fa-underline"></i></button>
+            </div>
+            <div id="ata-obs" class="editor-content" contenteditable="true" style="border: 1px solid var(--border); border-radius: var(--radius); padding: 0.625rem 0.875rem; min-height: 80px;"></div>
           </div>
           <div class="form-actions">
             <button type="submit" class="btn-primary"><i class="fas fa-save"></i> Salvar Ata</button>
@@ -178,7 +183,13 @@
         <form id="form-anotacao">
           <input type="hidden" id="anotacao-id">
           <div class="form-group">
-            <textarea id="anotacao-texto" rows="3" placeholder="Escreva sua anotação..." required></textarea>
+            <label>Texto da Anotação</label>
+            <div class="editor-toolbar">
+              <button type="button" data-command="bold" title="Negrito"><i class="fas fa-bold"></i></button>
+              <button type="button" data-command="italic" title="Itálico"><i class="fas fa-italic"></i></button>
+              <button type="button" data-command="underline" title="Sublinhado"><i class="fas fa-underline"></i></button>
+            </div>
+            <div id="anotacao-texto" class="editor-content" contenteditable="true" style="border: 1px solid var(--border); border-radius: var(--radius); padding: 0.625rem 0.875rem; min-height: 80px;"></div>
           </div>
           <div class="form-group">
             <label>Vincular à Ata (ID opcional)</label>
