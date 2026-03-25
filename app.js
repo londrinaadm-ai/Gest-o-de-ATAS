@@ -146,7 +146,7 @@ function atualizarDashboard() {
   const topProblema = Object.entries(problemas).sort((a, b) => b[1] - a[1])[0];
   topProblemaEl.innerText = topProblema ? topProblema[0] : "Nenhum";
 
-  // Participantes mais frequentes (top 10)
+  // Participantes mais frequentes (top 10) com tratamento de empate
   const freq = {};
   atas.forEach(ata => {
     if (ata.participantes && Array.isArray(ata.participantes)) {
@@ -155,20 +155,37 @@ function atualizarDashboard() {
       });
     }
   });
-  const sortedFreq = Object.entries(freq).sort((a, b) => b[1] - a[1]).slice(0, 10);
-  
-  if (sortedFreq.length === 0) {
+  const sorted = Object.entries(freq).sort((a, b) => b[1] - a[1]);
+
+  if (sorted.length === 0) {
     freqParticipantesList.innerHTML = "<li>Nenhum participante registrado</li>";
     return;
   }
 
-  // Exibir como lista estilizada com cores
-  freqParticipantesList.innerHTML = sortedFreq.map(([nome, count], index) => {
+  let position = 1;
+  let lastCount = null;
+  let positionIncrement = 0;
+  const ranked = [];
+
+  sorted.forEach(([nome, count], index) => {
+    if (lastCount !== count) {
+      position += positionIncrement;
+      positionIncrement = 1;
+      lastCount = count;
+    } else {
+      positionIncrement++;
+    }
+    ranked.push({ nome, count, pos: position });
+  });
+
+  const topRanked = ranked.slice(0, 10);
+
+  freqParticipantesList.innerHTML = topRanked.map(({ nome, count, pos }) => {
     const participante = participantes.find(p => p.nome === nome);
     const corClass = participante ? getCorClass(participante.cor) : "participant-default";
     return `
       <li class="freq-item">
-        <span class="freq-rank">${index + 1}º</span>
+        <span class="freq-rank">${pos}º</span>
         <span class="freq-name ${corClass}" style="padding: 0.2rem 0.6rem; border-radius: 20px;">${nome}</span>
         <span class="freq-count">${count} reunião${count !== 1 ? 'ões' : ''}</span>
       </li>
@@ -252,7 +269,7 @@ async function salvarAta(e) {
   const horaFim = ataHoraFim.value;
   const participantes = Array.from(participantesListDiv.querySelectorAll(".tag span:first-child")).map(span => span.innerText);
   const topicos = Array.from(topicosListDiv.querySelectorAll(".tag span:first-child")).map(span => span.innerText);
-  const observacoes = ataObs.value;
+  const observacoes = ataObs.innerHTML; // alterado para innerHTML
   const ano = new Date(data).getFullYear();
 
   if (!data || !horaInicio || !horaFim) {
@@ -298,6 +315,7 @@ function resetFormAta() {
   ataNumeroInput.value = "";
   participantesListDiv.innerHTML = "";
   topicosListDiv.innerHTML = "";
+  ataObs.innerHTML = ""; // limpar conteúdo HTML
   cancelEditAta.style.display = "none";
 }
 
@@ -310,7 +328,7 @@ function editarAta(id) {
   ataDataInput.value = ata.data;
   ataHoraInicio.value = ata.horaInicio;
   ataHoraFim.value = ata.horaFim;
-  ataObs.value = ata.observacoes || "";
+  ataObs.innerHTML = ata.observacoes || ""; // innerHTML
 
   // Preencher participantes com cores
   participantesListDiv.innerHTML = "";
@@ -486,7 +504,7 @@ function renderAnotacoesList() {
 
 async function salvarAnotacao(e) {
   e.preventDefault();
-  const texto = anotacaoTexto.value.trim();
+  const texto = anotacaoTexto.innerHTML.trim(); // innerHTML
   const ataVinculada = anotacaoVinculo.value.trim() || null;
 
   if (!texto) {
@@ -519,6 +537,7 @@ function resetFormAnotacao() {
   formAnotacao.reset();
   editandoAnotacaoId = null;
   anotacaoIdInput.value = "";
+  anotacaoTexto.innerHTML = ""; // limpar conteúdo HTML
   cancelEditAnotacao.style.display = "none";
 }
 
@@ -527,7 +546,7 @@ function editarAnotacao(id) {
   if (!nota) return;
 
   editandoAnotacaoId = id;
-  anotacaoTexto.value = nota.texto;
+  anotacaoTexto.innerHTML = nota.texto;
   anotacaoVinculo.value = nota.ataVinculada || "";
   cancelEditAnotacao.style.display = "inline-flex";
   formAnotacao.scrollIntoView({ behavior: "smooth" });
@@ -717,6 +736,18 @@ function addTopicoFromInput() {
   }
 }
 
+// Editor de texto
+function setupEditor(editorElement, toolbarElement) {
+  toolbarElement.querySelectorAll('button').forEach(button => {
+    button.addEventListener('click', (e) => {
+      e.preventDefault();
+      const command = button.dataset.command;
+      document.execCommand(command, false, null);
+      editorElement.focus();
+    });
+  });
+}
+
 // Eventos de tecla (Enter)
 inputParticipante.addEventListener("keypress", (e) => {
   if (e.key === "Enter") {
@@ -831,6 +862,15 @@ function init() {
   searchAtas.addEventListener("input", renderAtasList);
   buscaParticipantes.addEventListener("input", renderParticipantesList);
   buscaAnotacoes.addEventListener("input", renderAnotacoesList);
+
+  // Configurar editores
+  const obsEditor = document.getElementById('ata-obs');
+  const obsToolbar = obsEditor.parentElement.querySelector('.editor-toolbar');
+  if (obsEditor && obsToolbar) setupEditor(obsEditor, obsToolbar);
+
+  const anotacaoEditor = document.getElementById('anotacao-texto');
+  const anotacaoToolbar = anotacaoEditor.parentElement.querySelector('.editor-toolbar');
+  if (anotacaoEditor && anotacaoToolbar) setupEditor(anotacaoEditor, anotacaoToolbar);
 
   // Carregar dados
   showLoading(true);
