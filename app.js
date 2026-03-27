@@ -186,11 +186,22 @@ function atualizarDashboard() {
     return `
       <li class="freq-item">
         <span class="freq-rank">${pos}º</span>
-        <span class="freq-name ${corClass}" style="padding: 0.2rem 0.6rem; border-radius: 20px;">${nome}</span>
+        <span class="freq-name ${corClass}" style="padding: 0.2rem 0.6rem; border-radius: 20px;">${escapeHtml(nome)}</span>
         <span class="freq-count">${count} reunião${count !== 1 ? 'ões' : ''}</span>
       </li>
     `;
   }).join("");
+}
+
+// Função de escape para evitar injeção HTML
+function escapeHtml(text) {
+  if (!text) return '';
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 // -------------------- CRUD Atas --------------------
@@ -229,21 +240,21 @@ function renderAtasList() {
     const participantesHtml = (ata.participantes || []).map(p => {
       const participante = participantes.find(part => part.nome === p);
       const corClass = participante ? getCorClass(participante.cor) : "participant-default";
-      return `<span class="tag ${corClass}">${p}</span>`;
+      return `<span class="tag ${corClass}">${escapeHtml(p)}</span>`;
     }).join(" ");
 
-    const topicosHtml = (ata.topicos || []).map(t => `<span class="tag participant-default">${t}</span>`).join(" ");
+    const topicosHtml = (ata.topicos || []).map(t => `<span class="tag participant-default">${escapeHtml(t)}</span>`).join(" ");
 
     return `
       <div class="ata-item">
         <div class="ata-header">
-          <div class="ata-title">${ata.numero}</div>
+          <div class="ata-title">${escapeHtml(ata.numero)}</div>
           <div class="ata-meta">${formatDate(ata.data)} | ${ata.horaInicio} - ${ata.horaFim}</div>
         </div>
         <div class="ata-details">
           <strong>Participantes:</strong> ${participantesHtml || "Nenhum"}<br>
           <strong>Tópicos:</strong> ${topicosHtml || "Nenhum"}<br>
-          <strong>Observações:</strong> ${ata.observacoes || "—"}
+          <strong>Observações:</strong> ${ata.observacoes ? escapeHtml(ata.observacoes) : "—"}
         </div>
         <div class="ata-actions">
           <button class="btn-secondary edit-ata" data-id="${ata.id}"><i class="fas fa-edit"></i> Editar</button>
@@ -269,7 +280,7 @@ async function salvarAta(e) {
   const horaFim = ataHoraFim.value;
   const participantes = Array.from(participantesListDiv.querySelectorAll(".tag span:first-child")).map(span => span.innerText);
   const topicos = Array.from(topicosListDiv.querySelectorAll(".tag span:first-child")).map(span => span.innerText);
-  const observacoes = ataObs.innerHTML; // alterado para innerHTML
+  const observacoes = ataObs.innerHTML; // já em HTML
   const ano = new Date(data).getFullYear();
 
   if (!data || !horaInicio || !horaFim) {
@@ -294,7 +305,6 @@ async function salvarAta(e) {
       await updateDoc(doc(db, "atas", editandoAtaId), ataData);
       showToast("Ata atualizada com sucesso!");
     } else {
-      // Gerar número automático se não tiver
       if (!ataNumeroInput.value) {
         ataData.numero = await gerarNumeroAta();
       }
@@ -315,7 +325,7 @@ function resetFormAta() {
   ataNumeroInput.value = "";
   participantesListDiv.innerHTML = "";
   topicosListDiv.innerHTML = "";
-  ataObs.innerHTML = ""; // limpar conteúdo HTML
+  ataObs.innerHTML = "";
   cancelEditAta.style.display = "none";
 }
 
@@ -328,26 +338,19 @@ function editarAta(id) {
   ataDataInput.value = ata.data;
   ataHoraInicio.value = ata.horaInicio;
   ataHoraFim.value = ata.horaFim;
-  ataObs.innerHTML = ata.observacoes || ""; // innerHTML
+  ataObs.innerHTML = ata.observacoes || "";
 
-  // Preencher participantes com cores
   participantesListDiv.innerHTML = "";
   if (ata.participantes && Array.isArray(ata.participantes)) {
-    ata.participantes.forEach(p => {
-      addTag(participantesListDiv, p);
-    });
+    ata.participantes.forEach(p => addTag(participantesListDiv, p));
   }
 
-  // Preencher tópicos
   topicosListDiv.innerHTML = "";
   if (ata.topicos && Array.isArray(ata.topicos)) {
-    ata.topicos.forEach(t => {
-      addTag(topicosListDiv, t);
-    });
+    ata.topicos.forEach(t => addTag(topicosListDiv, t));
   }
 
   cancelEditAta.style.display = "inline-flex";
-  // Rolar para o topo do formulário
   formAta.scrollIntoView({ behavior: "smooth" });
 }
 
@@ -369,8 +372,7 @@ async function carregarParticipantes() {
     participantes = snapshot.docs.map(doc => ({ id: doc.id, nome: doc.data().nome, cor: doc.data().cor || "" }));
     renderParticipantesList();
     atualizarDatalists();
-    // Re-renderizar atas para atualizar cores dos participantes já cadastrados
-    renderAtasList();
+    renderAtasList(); // re-renderiza para atualizar cores
     showLoading(false);
   }, (error) => {
     console.error("Erro ao carregar participantes:", error);
@@ -387,14 +389,13 @@ function renderParticipantesList() {
     const corClass = getCorClass(p.cor);
     return `
       <div class="participant-tag ${corClass}">
-        <span>${p.nome}</span>
+        <span>${escapeHtml(p.nome)}</span>
         <i class="fas fa-pencil-alt edit-cor" data-id="${p.id}" data-cor="${p.cor}" style="cursor:pointer;"></i>
         <i class="fas fa-trash-alt delete-participante" data-id="${p.id}" style="cursor:pointer;"></i>
       </div>
     `;
   }).join("");
 
-  // Evento de editar cor
   document.querySelectorAll(".edit-cor").forEach(btn => {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -429,7 +430,7 @@ async function editarCorParticipante(id, novaCor) {
 }
 
 function atualizarDatalists() {
-  const options = participantes.map(p => `<option value="${p.nome}">`).join("");
+  const options = participantes.map(p => `<option value="${escapeHtml(p.nome)}">`).join("");
   participantesSuggestions.innerHTML = options;
   participantesSuggestionsRel.innerHTML = options;
 }
@@ -463,7 +464,7 @@ async function excluirParticipante(id) {
   }
 }
 
-// -------------------- CRUD Anotações --------------------
+// -------------------- CRUD Anotações (CORRIGIDO) --------------------
 async function carregarAnotacoes() {
   const q = query(anotacoesCollection, orderBy("createdAt", "desc"));
   const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -480,19 +481,34 @@ async function carregarAnotacoes() {
 
 function renderAnotacoesList() {
   const searchTerm = buscaAnotacoes.value.toLowerCase();
-  const filtered = anotacoes.filter(n => n.texto.toLowerCase().includes(searchTerm));
-  anotacoesListDiv.innerHTML = filtered.map(nota => `
-    <div class="note-item">
-      <div class="note-header">
-        <div><i class="fas fa-sticky-note"></i> ${nota.texto.substring(0, 60)}${nota.texto.length > 60 ? "..." : ""}</div>
-        <div class="ata-meta">${nota.ataVinculada ? `Vinculada à ata: ${nota.ataVinculada}` : "Sem vínculo"}</div>
+  const filtered = anotacoes.filter(n => n.texto?.toLowerCase().includes(searchTerm));
+
+  if (filtered.length === 0) {
+    anotacoesListDiv.innerHTML = "<p class='text-center'>Nenhuma anotação encontrada.</p>";
+    return;
+  }
+
+  // IMPORTANTE: usar texto puro para resumo, não HTML, para evitar quebra de layout
+  anotacoesListDiv.innerHTML = filtered.map(nota => {
+    // Extrair texto puro do HTML (remover tags)
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = nota.texto || '';
+    const textoPuro = tempDiv.innerText || '';
+    const resumo = textoPuro.length > 60 ? textoPuro.substring(0, 60) + '...' : textoPuro;
+
+    return `
+      <div class="note-item">
+        <div class="note-header">
+          <div><i class="fas fa-sticky-note"></i> ${escapeHtml(resumo)}</div>
+          <div class="ata-meta">${nota.ataVinculada ? `Vinculada à ata: ${escapeHtml(nota.ataVinculada)}` : "Sem vínculo"}</div>
+        </div>
+        <div class="ata-actions">
+          <button class="btn-secondary edit-anotacao" data-id="${nota.id}"><i class="fas fa-edit"></i> Editar</button>
+          <button class="btn-secondary delete-anotacao" data-id="${nota.id}"><i class="fas fa-trash-alt"></i> Excluir</button>
+        </div>
       </div>
-      <div class="ata-actions">
-        <button class="btn-secondary edit-anotacao" data-id="${nota.id}"><i class="fas fa-edit"></i> Editar</button>
-        <button class="btn-secondary delete-anotacao" data-id="${nota.id}"><i class="fas fa-trash-alt"></i> Excluir</button>
-      </div>
-    </div>
-  `).join("");
+    `;
+  }).join("");
 
   document.querySelectorAll(".edit-anotacao").forEach(btn => {
     btn.addEventListener("click", () => editarAnotacao(btn.dataset.id));
@@ -504,7 +520,7 @@ function renderAnotacoesList() {
 
 async function salvarAnotacao(e) {
   e.preventDefault();
-  const texto = anotacaoTexto.innerHTML.trim(); // innerHTML
+  const texto = anotacaoTexto.innerHTML.trim(); // mantém HTML
   const ataVinculada = anotacaoVinculo.value.trim() || null;
 
   if (!texto) {
@@ -537,7 +553,7 @@ function resetFormAnotacao() {
   formAnotacao.reset();
   editandoAnotacaoId = null;
   anotacaoIdInput.value = "";
-  anotacaoTexto.innerHTML = ""; // limpar conteúdo HTML
+  anotacaoTexto.innerHTML = "";
   cancelEditAnotacao.style.display = "none";
 }
 
@@ -546,7 +562,7 @@ function editarAnotacao(id) {
   if (!nota) return;
 
   editandoAnotacaoId = id;
-  anotacaoTexto.innerHTML = nota.texto;
+  anotacaoTexto.innerHTML = nota.texto || "";
   anotacaoVinculo.value = nota.ataVinculada || "";
   cancelEditAnotacao.style.display = "inline-flex";
   formAnotacao.scrollIntoView({ behavior: "smooth" });
@@ -611,10 +627,10 @@ function gerarRelatorio() {
   filtradas.forEach(ata => {
     html += `
       <div class="relatorio-item">
-        <strong>${ata.numero}</strong> - ${formatDate(ata.data)} | ${ata.horaInicio} às ${ata.horaFim}<br>
-        <strong>Participantes:</strong> ${ata.participantes?.join(", ") || "Nenhum"}<br>
-        <strong>Tópicos:</strong> ${ata.topicos?.join(", ") || "Nenhum"}<br>
-        <strong>Observações:</strong> ${ata.observacoes || "—"}
+        <strong>${escapeHtml(ata.numero)}</strong> - ${formatDate(ata.data)} | ${ata.horaInicio} às ${ata.horaFim}<br>
+        <strong>Participantes:</strong> ${(ata.participantes || []).map(p => escapeHtml(p)).join(", ") || "Nenhum"}<br>
+        <strong>Tópicos:</strong> ${(ata.topicos || []).map(t => escapeHtml(t)).join(", ") || "Nenhum"}<br>
+        <strong>Observações:</strong> ${escapeHtml(ata.observacoes || "—")}
       </div>
     `;
   });
@@ -629,7 +645,6 @@ async function exportarPDF() {
     return;
   }
 
-  // Criar elemento temporário para renderizar o relatório
   const element = document.createElement("div");
   element.style.padding = "20px";
   element.style.fontFamily = "Inter, sans-serif";
@@ -638,10 +653,10 @@ async function exportarPDF() {
     <p>Gerado em: ${new Date().toLocaleString()}</p>
     ${filtradas.map(ata => `
       <div style="border-bottom: 1px solid #ccc; padding: 10px 0;">
-        <strong>${ata.numero}</strong> - ${formatDate(ata.data)} | ${ata.horaInicio} - ${ata.horaFim}<br>
-        <strong>Participantes:</strong> ${ata.participantes?.join(", ") || "Nenhum"}<br>
-        <strong>Tópicos:</strong> ${ata.topicos?.join(", ") || "Nenhum"}<br>
-        <strong>Observações:</strong> ${ata.observacoes || "—"}
+        <strong>${escapeHtml(ata.numero)}</strong> - ${formatDate(ata.data)} | ${ata.horaInicio} - ${ata.horaFim}<br>
+        <strong>Participantes:</strong> ${(ata.participantes || []).map(p => escapeHtml(p)).join(", ") || "Nenhum"}<br>
+        <strong>Tópicos:</strong> ${(ata.topicos || []).map(t => escapeHtml(t)).join(", ") || "Nenhum"}<br>
+        <strong>Observações:</strong> ${escapeHtml(ata.observacoes || "—")}
       </div>
     `).join("")}
   `;
@@ -658,7 +673,7 @@ async function exportarPDF() {
     let position = 0;
     pdf.addImage(imgData, "PNG", 10, position, imgWidth, imgHeight);
     if (imgHeight > pageHeight) {
-      // Se necessário, adicionar múltiplas páginas (simplificado)
+      // simplificado
     }
     pdf.save("relatorio_atas.pdf");
     showToast("PDF gerado com sucesso!");
@@ -685,8 +700,8 @@ function exportarExcel() {
       ata.numero,
       ata.data,
       `${ata.horaInicio} - ${ata.horaFim}`,
-      ata.participantes?.join("; ") || "",
-      ata.topicos?.join("; ") || "",
+      (ata.participantes || []).join("; "),
+      (ata.topicos || []).join("; "),
       ata.observacoes || ""
     ]);
   });
@@ -700,12 +715,11 @@ function exportarExcel() {
 
 // -------------------- Tags dinâmicas (participantes/tópicos) --------------------
 function addTag(container, text) {
-  // Buscar a cor do participante se for da lista de participantes
   const participante = participantes.find(p => p.nome === text);
   const corClass = participante ? getCorClass(participante.cor) : "participant-default";
   const tag = document.createElement("div");
   tag.className = `tag ${corClass}`;
-  tag.innerHTML = `<span>${text}</span><i class="fas fa-times remove-tag"></i>`;
+  tag.innerHTML = `<span>${escapeHtml(text)}</span><i class="fas fa-times remove-tag"></i>`;
   container.appendChild(tag);
   tag.querySelector(".remove-tag").addEventListener("click", () => tag.remove());
 }
@@ -713,7 +727,6 @@ function addTag(container, text) {
 function addParticipanteFromInput() {
   const nome = inputParticipante.value.trim();
   if (nome) {
-    // Verificar se o nome existe na lista de participantes cadastrados (para consistência)
     const exists = participantes.some(p => p.nome === nome);
     if (!exists) {
       showToast("Participante não cadastrado. Cadastre-o primeiro.", "error");
@@ -872,9 +885,7 @@ function init() {
   const anotacaoToolbar = anotacaoEditor.parentElement.querySelector('.editor-toolbar');
   if (anotacaoEditor && anotacaoToolbar) setupEditor(anotacaoEditor, anotacaoToolbar);
 
-  // Carregar dados
   showLoading(true);
-  // Inicializar participantes primeiro (para garantir que existam antes de carregar atas)
   inicializarParticipantes().then(() => {
     carregarParticipantes();
     carregarAtas();
